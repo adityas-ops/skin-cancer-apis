@@ -4,6 +4,7 @@ from tensorflow.keras.models import load_model
 from PIL import Image
 import numpy as np
 import io
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -29,6 +30,21 @@ def preprocess_image(image):
     img_array_normalized = img_array / 255.0
     img_array_scaled = img_array_normalized.reshape(1, 28, 28, 1)
     return img_array_scaled
+
+# CORS Configuration
+origins = [
+    "http://localhost",
+    "http://localhost:3000",  # Assuming your React.js app runs on this port
+    "http://localhost:3001",  # Assuming your FastAPI app runs on this port
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 # Predict endpoint
 @app.post("/predict/")
