@@ -1,15 +1,15 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
-from tensorflow.keras.models import load_model
 from PIL import Image
 import numpy as np
 import io
 from fastapi.middleware.cors import CORSMiddleware
+from tensorflow.keras.models import load_model
 
 app = FastAPI()
 
 # Load pre-trained model
-model = load_model('aditya.h5')
+model = load_model('final_model.h5')
 
 # Define class labels
 class_labels = {
@@ -24,18 +24,20 @@ class_labels = {
 
 # Function to preprocess image
 def preprocess_image(image):
-    img = image.convert('L')
+    img = Image.open(io.BytesIO(image))
     img = img.resize((28, 28))
-    img_array = np.array(img)
-    img_array_normalized = img_array / 255.0
-    img_array_scaled = img_array_normalized.reshape(1, 28, 28, 1)
-    return img_array_scaled
+    img_array = np.array(img) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
+    return img_array
 
 # CORS Configuration
 origins = [
     "http://localhost",
     "http://localhost:3000",  # Assuming your React.js app runs on this port
     "http://localhost:3001",  # Assuming your FastAPI app runs on this port
+    "http://localhost:3002",
+    "http://localhost:3003",
+    "http://localhost:3004",
 ]
 
 app.add_middleware(
@@ -52,15 +54,26 @@ async def predict(file: UploadFile = File(...)):
     try:
         # Read the image file
         contents = await file.read()
-        image = Image.open(io.BytesIO(contents))
 
         # Preprocess the image
-        preprocessed_image = preprocess_image(image)
+        preprocessed_image = preprocess_image(contents)
 
         # Make prediction
         prediction = model.predict(preprocessed_image)
-        predicted_class = class_labels[np.argmax(prediction)]
+        predicted_class_index = np.argmax(prediction)
+        predicted_class = class_labels[predicted_class_index]
+        confidence = np.max(prediction) * 100
 
-        return JSONResponse(content={"prediction": predicted_class}, status_code=200)
+        # Prepare response
+        class_probabilities = {class_labels[i]: str(prediction[0][i] * 100) for i in range(len(class_labels))}
+
+        return JSONResponse(
+            content={
+                "prediction": predicted_class,
+                "confidence": str(confidence),
+                "class_probabilities": class_probabilities
+            },
+            status_code=200
+        )
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
